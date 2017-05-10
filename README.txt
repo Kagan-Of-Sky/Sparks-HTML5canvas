@@ -12,6 +12,7 @@ Motion blur in v2 is simulated using a background with a low alpha,
 meaning that the background never fully goes black and thus residue/trails
 from the previous particles are left over.
 To get rid of this I used multiple canvas elements to simulate 'frames'.
-The motion blur effect is an improvement over v2 however the colors are very faded.
+The motion blur effect is an improvement over v2 however the colors are very faded,
+and performance is very slow.
 I know the issue but couldnt find a way to resolve it.
 Might come back to it some time.
