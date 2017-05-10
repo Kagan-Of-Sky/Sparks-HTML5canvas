@@ -1,0 +1,235 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+
+    <style>
+      body{
+        padding: 0;
+        margin: 0;
+        width: 100%;
+        height:100%;
+      }
+
+      #canvas {
+        width: 1000px;
+        height: 500px;
+        margin-left: auto;
+        margin-right: auto;
+
+        /* Vertically center this element */
+        position: relative;
+        top: 50%;
+        transform: translateY(-50%);
+
+        display: block;
+        cursor: crosshair;
+      }
+    </style>
+  </head>
+
+  <body>
+    <canvas id="canvas">
+      Sorry, unfortunately your browser does not support the html canvas tag :(
+    </canvas>
+
+    <script>
+      const T_BUFFER_FRAMES = 100;
+
+      // Play with these to change the way the particles behave.
+      const MAX_RADIUS = 2; // Maximum radius of a particle.
+
+      const MIN_SX = -2; // Minimum speed in x axis
+      const MAX_SX = 2; // Maximum speed in x axis
+
+      const MIN_SY = -2; // Minimum speed in y axis
+      const MAX_SY = 2; // Maximum speed in y axis
+
+      const MAX_PARTICLES = 1000; // Maximum number of particles
+
+      const MAX_LIFE = 200; // Maximum number of times this particle is rendered.
+
+      const START_COLOR = [255,255,26]; // Start rgb color
+      const TARGET_COLOR = [194, 25, 2]; // Target color (when the spark gets old)
+
+      const H_MOMENTUM_LOSS_PERCENTAGE = 0.99; // Loss of momentum in horizontal direction
+      const GRAVITY = 0.1; // Downward gravity
+
+      // Set up canvas
+      const canvas = document.getElementById('canvas');
+      canvas.width = canvas.scrollWidth;
+      canvas.height = canvas.scrollHeight;
+      const c = canvas.getContext('2d');
+
+      // Create t-buffer of frames.
+      let frames = [];
+      let currentFrameIndex = 0;
+      for(let i=0; i<T_BUFFER_FRAMES; ++i){
+        let newCanvas = document.createElement('canvas');
+        newCanvas.width = canvas.width;
+        newCanvas.height = canvas.height;
+
+        frames.push({
+          canvas: newCanvas,
+          context: newCanvas.getContext('2d')
+        });
+      }
+
+      // Create particles.
+      let particles = [];
+      for(let i=0; i<MAX_PARTICLES; ++i){
+        particles.push(new Particle());
+      }
+
+      // These variables help with the spawning of particles when the mouse is held down.
+      let mouseDown = false;
+      let lastKnownMouseX = 0; // Last known x - coordinate of the mouse
+      let lastKnownMouseY = 0; // Last known y - coordinate of the mouse
+
+      // Register mouse down listener
+      canvas.onmousedown = (event) => {
+        mouseDown = true;
+        //console.log(event.clientX, document.body.scrollLeft, canvas.scrollLeft);
+        let boundingRect = canvas.getBoundingClientRect();
+        lastKnownMouseX = event.pageX - boundingRect.left;
+        lastKnownMouseY = event.pageY - boundingRect.top;
+        canvas.style.cursor = 'none';
+      };
+
+      // Register mouse listeners related to mouse being released or leaving the screen.
+      canvas.onmouseup = canvas.onmouseleave = (event) => {
+        mouseDown = false;
+        canvas.style.cursor = 'crosshair';
+      };
+
+      // Spawn particles where the user's cursor is.
+      canvas.onmousemove = (event) => {
+        if(!mouseDown){ return; } // If mouse is not held down, dont bother doing anything.
+
+        // Save mouse coordinates.
+        let boundingRect = canvas.getBoundingClientRect();
+        lastKnownMouseX = event.pageX - boundingRect.left;
+        lastKnownMouseY = event.pageY - boundingRect.top;
+      };
+
+      // Handles the movement of particles after they have been spawned.
+      setInterval(() => {
+        // If the mouse is held down, respawn dead particles at its current position.
+        if(mouseDown){
+          for(let i=0; i<particles.length; ++i){
+            let p = particles[i];
+            // Refresh this particle if it has died.
+            if(p.l <= 0){
+              refreshParticle(p, lastKnownMouseX, lastKnownMouseY);
+            }
+          }
+        }
+
+        // Run through all particles.
+        let currentContext = frames[currentFrameIndex].context;
+        currentContext.fillStyle = 'black';
+        currentContext.fillRect(0,0,canvas.width, canvas.height);
+
+        for(let i=0; i<particles.length; ++i){
+          let p = particles[i];
+
+          // If this particle has lived its life, dont draw it (user mouse drags will handle spawning).
+          if(p.l === 0){ continue; }
+          p.l--;
+
+          // Update particle speed
+          p.sx *= H_MOMENTUM_LOSS_PERCENTAGE; // Simulate particle losing horizontal momentum.
+          p.sy += GRAVITY; // Simulate gravity pulling down onto particle(arc).
+
+          // Update particle positions
+          p.x += p.sx;
+          p.y += p.sy;
+
+          // Check for out of bounds on left or right side
+          if(p.x - p.r < 0){ // Too far left
+            p.sx = -p.sx/1.2;
+            p.x = p.r;
+          }
+          else if(p.x + p.r > canvas.width){ // Too far right
+            p.sx = -p.sx/1.2;
+            p.x = canvas.width - p.r;
+          }
+
+          // Check for out of bounds on top or bottom side
+          if(p.y - p.r < 0){ // Too high up
+            p.sy = -p.sy/1.2;
+            p.y = p.r;
+          }
+          else if(p.y + p.r > canvas.height){ // Too low
+            p.sy = -p.sy/2;
+            p.y = canvas.height-p.r;
+          }
+
+          // Update particle color.
+          for(let i=0; i<p.cc.length; ++i){
+            p.cc[i] += p.cs[i];
+          }
+
+          // Draw particle
+          drawParticle(p, currentContext);
+        }
+
+        // Clear primary canvas
+        c.fillStyle = 'black';
+        c.fillRect(0,0,canvas.width, canvas.height);
+
+        // Simulate motionblur
+        // TODO black layers are making colors washed out.
+        for(let i=1; i<=frames.length; ++i){
+          let currentFrame = frames[(currentFrameIndex + i + frames.length) % frames.length];
+          let alpha = (i/frames.length) * 0.35;
+          c.globalAlpha = alpha;
+          c.drawImage(currentFrame.canvas, 0, 0);
+        }
+        currentFrameIndex = (currentFrameIndex+1) % frames.length;
+      }, 1000/60);
+
+      // Draws a single particle onto the specified context.
+      function drawParticle(p, context){
+        context.fillStyle = `rgb(${Math.floor(p.cc[0])}, ${Math.floor(p.cc[1])}, ${Math.floor(p.cc[2])})`;
+        context.beginPath();
+        context.arc(p.x, p.y, p.r, 0, Math.PI*2);
+        context.fill();
+      }
+
+      // Creates a new particle
+      function Particle(){
+        refreshParticle(this, 0, 0);
+        this.r = 0;
+      }
+
+      // Refreshes a particle, ie. recreates an existing particle with a new radius, x, y, sx, sy, and life.
+      function refreshParticle(p, x, y){
+        // Set radius
+        p.r = Math.random()*MAX_RADIUS;
+
+        // Set spawning coordinates
+        p.x = x;
+        p.y = y;
+
+        // Set speeds
+        p.sx = Math.random()*(MAX_SX-MIN_SX) + MIN_SX;
+        p.sy = Math.random()*(MAX_SY-MIN_SY) + MIN_SY;
+
+        // Set life
+        p.l = Math.floor(Math.random() * MAX_LIFE);
+
+        // Set colors
+        p.sc = START_COLOR; // Starting Color
+        p.cc = p.sc.slice(); // Current Color
+        p.tc = TARGET_COLOR; // Target Color
+
+        // Set Color Shifts
+        p.cs = [
+          (p.tc[0] - p.sc[0]) / p.l,
+          (p.tc[1] - p.sc[1]) / p.l,
+          (p.tc[2] - p.sc[2]) / p.l
+        ];
+      }
+    </script>
+  </body>
+</html>

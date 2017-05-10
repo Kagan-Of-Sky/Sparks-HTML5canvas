@@ -1,0 +1,123 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+
+    <style>
+      body{
+        padding: 0;
+        margin: 0;
+        width: 100%;
+        height:100%;
+      }
+
+      #canvas {
+        width: inherit;
+        height: inherit;
+        margin-left: auto;
+        margin-right: auto;
+        display: block;
+      }
+    </style>
+  </head>
+
+  <body>
+    <canvas id="canvas">
+      Sorry, but your browser does not support the html canvas tag.
+    </canvas>
+
+    <script>
+      const MAX_RADIUS = 5;
+      const MIN_SX = -5;
+      const MAX_SX = 5;
+      const MIN_SY = -5;
+      const MAX_SY = 5;
+      const MAX_PARTICLES = 100;
+      const MAX_LIFE = 250;
+
+      // Set up canvas
+      const canvas = document.getElementById('canvas');
+
+      canvas.width = canvas.scrollWidth;
+      canvas.height = canvas.scrollHeight;
+
+      const c = canvas.getContext('2d');
+
+      let particles = [];
+      for(let i=0; i<MAX_PARTICLES; ++i){
+        particles.push({
+          r:0,  // Radius
+          x:0,  // x position
+          y:0,  // y position
+          sx:0, // speed x
+          sy:0, // speed y
+          l:1   // life
+        })
+      }
+
+      canvas.addEventListener('mousemove', (event)=>{
+        //c.clearRect(0,0,canvas.width, canvas.height);
+
+        c.fillStyle = 'rgba(0,0,0,0.1)';
+        c.fillRect(0,0,canvas.width, canvas.height);
+
+        for(let i=0; i<particles.length; ++i){
+          let p = particles[i];
+
+          // Refresh this particle if it has died.
+          p.l--;
+          if(p.l <= 0){
+            refreshParticle(p, event.clientX, event.clientY);
+          }
+
+          // Update particle position
+          p.sx *= 0.999;
+          p.x += p.sx;
+          p.sy += 0.1; // Simulate arc
+          p.y += p.sy;
+
+          // Check for collisions
+          if(p.x - p.r < 0){
+            p.sx = -p.sx;
+            p.x = p.r;
+          }
+          else if(p.x + p.r > canvas.width){
+            p.sx = -p.sx;
+            p.x = canvas.width - p.r;
+          }
+
+          if(p.y - p.r < 0){
+            p.sy = -p.sy;
+            p.y = p.r;
+          }
+          else if(p.y + p.r > canvas.height){
+            p.sy = -p.sy/2;
+            p.y = canvas.height-p.r;
+          }
+
+          // Draw particle
+          drawParticle(p, c);
+        }
+      }, false);
+
+      function drawParticle(p, context){
+        //console.log(`x=${p.x}, y=${p.y}, r=${p.r}, l=${p.l}`);
+        context.fillStyle = 'white';
+        context.beginPath();
+        context.arc(p.x, p.y, p.r, 0, Math.PI*2);
+        context.fill();
+      }
+
+      function refreshParticle(particle, x, y){
+        particle.r = Math.random()*MAX_RADIUS;
+
+        particle.x = x;
+        particle.y = y;
+
+        particle.sx = Math.random()*(MAX_SX-MIN_SX) + MIN_SX;
+        particle.sy = Math.random()*(MAX_SY-MIN_SY) + MIN_SY;
+
+        particle.l = Math.floor(Math.random() * MAX_LIFE);
+      }
+    </script>
+  </body>
+</html>
